@@ -24,6 +24,7 @@ def d4dtrainer(
     loss_params: dict,
     model_params: dict,
     training: dict,
+    kwargs: dict = {},
     run_ID: int = None,
     output_path: str = "./"
 ):
@@ -58,13 +59,32 @@ def d4dtrainer(
 
     ######## DATASET
     ## Create training and validation PYTORCH datasets/objects
+
+    # Get threshold for BerGamma loss
+    if loss_params["name"] == "NLLBerGammaLoss":
+        bergamma_threshold = kwargs["bergamma_threshold"]
+    else:
+        bergamma_threshold = None
+        
+    # Get threshold for DualOutput loss
+    if loss_params["name"] == "DualOutputLoss":
+        dual_output_threshold = kwargs.get("dual_output_threshold", 0.0)
+        # Store threshold in loss params for the loss function
+        loss_params["threshold"] = dual_output_threshold
+        # Store in metadata for prediction
+        metadata["dual_output_threshold"] = dual_output_threshold
+    else:
+        dual_output_threshold = None
+
     train_dataset = d4d_dataloader(path_predictors = data["training"]["predictors"]["paths"], 
                                   path_predictands = data["training"]["predictands"]["paths"], 
                                   variables_predictors = data["training"]["predictors"]["variables"],
                                   variables_predictands = data["training"]["predictands"]["variables"],
                                   standardize_predictors = data["training"]["predictors"]["standardize"],
                                   years_predictors = data["training"]["predictors"]["years"],
-                                  years_predictands = data["training"]["predictands"]["years"])
+                                  years_predictands = data["training"]["predictands"]["years"],
+                                  bergamma_threshold = bergamma_threshold)
+
     m, s = train_dataset.get_stats()
     metadata["mean"] = np.array(m.squeeze()).tolist()
     metadata["std"] = np.array(s.squeeze()).tolist()
@@ -75,12 +95,14 @@ def d4dtrainer(
                                   variables_predictands = data["validation"]["predictands"]["variables"],
                                   standardize_predictors = data["training"]["predictors"]["standardize"],
                                   years_predictors = data["validation"]["predictors"]["years"],
-                                  years_predictands = data["validation"]["predictands"]["years"])
+                                  years_predictands = data["validation"]["predictands"]["years"],
+                                  bergamma_threshold = bergamma_threshold)
 
 
 
 
     ######## DATA LOADER
+
     ## Create DataLoaders
     train_dataloader = DataLoader(train_dataset, batch_size = dataloader["batch_size"], shuffle = dataloader["shuffle"], num_workers = dataloader["num_workers"])
     valid_dataloader = DataLoader(valid_dataset, batch_size = dataloader["batch_size"], shuffle = dataloader["shuffle"], num_workers = dataloader["num_workers"])
@@ -93,12 +115,12 @@ def d4dtrainer(
     loss_name = loss_params["name"]  # e.g., "NLLBerGammaLoss"
     module = importlib.import_module("deep4downscaling.deep.loss") # Dynamically import from module
     loss_func = getattr(module, loss_name)
-    # Parameters
-    kwargs = {
+    # Parameters - exclude 'name' from kwargs
+    loss_kwargs = {
            k: v for k, v in loss_params.items()
            if k not in ["name"]
          }
-    loss_function = loss_func(**kwargs)
+    loss_function = loss_func(**loss_kwargs)
     # Update metadata dictionary
     metadata["loss"] = loss_name
 
@@ -111,21 +133,26 @@ def d4dtrainer(
     model_name = model_params["name"]  # e.g., "DeepESDpr"
     module = importlib.import_module("deep4downscaling.deep.models") # Dynamically import from module
     model_func = getattr(module, model_name)
-    # Parameters
-    kwargs = {
+    # Parameters - exclude 'name' from kwargs and handle threshold for DualOutput model
+    model_kwargs = {
            k: v for k, v in model_params.items()
            if k not in ["name"]
          }
+    
+    # Add threshold parameter for DualOutput models
+    if model_params["name"] == "DeepESDDualOutput" and dual_output_threshold is not None:
+        model_kwargs["threshold"] = dual_output_threshold
+    
     print(template_x.unsqueeze(0).shape)
     print(template_y.unsqueeze(0).shape)
-    model = model_func(x_shape=template_x.unsqueeze(0).shape , y_shape=template_y.unsqueeze(0).shape , **kwargs)
+    model = model_func(x_shape=template_x.unsqueeze(0).shape , y_shape=template_y.unsqueeze(0).shape , **model_kwargs)
 
     # Update metadata dictionary
     metadata["architecture"] = model_name
     metadata["model_parameters"] = {
         "x_shape": np.array(template_x.unsqueeze(0).shape ).tolist(),
         "y_shape": np.array(template_y.unsqueeze(0).shape ).tolist(),
-        **kwargs  
+        **model_kwargs  
     }
     del template_x, template_y
     # print(model)

@@ -53,7 +53,6 @@ def d4dpredict(
     if ref_data is None:
         ref_data = input_data
 
-
     print(f"""
     -----------------------------------------------------------------------------------------------------------
     WELCOME TO D4D PREDICTION MODULE! 📈🤖📊
@@ -64,23 +63,18 @@ def d4dpredict(
     -----------------------------------------------------------------------------------------------------------
     """) 
 
-
-
-
-
     ######## PARSING METADATA
     metadata = read_metadata_from_yaml(metadata_yaml)
-    # print(f"""
-    # From METADATA YAML FILE obtained the following information:
-    # {metadata}
-    # """) 
 
 
     ######## LOADER --- OR LOAD DATA FROM A ZARR??!!
     ds = zarr.open(input_data["path"], mode='r')
-    # z_ref = zarr.open(ref_data, mode='r')
-    samples_idx = ds.shape[0]
+
+    num_samples = ds.shape[0]
+
     dates_test = [ date for date in ds.attrs.get("dates") if int(date[:4]) in input_data["years"] ]
+    num_test_samples = len(dates_test)
+    test_sample_indices = [ i for i, date in enumerate(ds.attrs.get("dates")) if int(date[:4]) in input_data["years"] ]
 
     if input_data["variables"] is None:
         vars = ds.attrs.get("variables")
@@ -104,12 +98,25 @@ def d4dpredict(
     kwargs["spatial_dims"] = ["lat", "lon"]
     if "x" in kwargs["mask"].dims and "y" in kwargs["mask"].dims:
       kwargs["spatial_dims"] = ["y", "x"]
+    
+    # Add threshold parameter for specific loss functions
+    if metadata["loss"] == "NLLBerGammaLoss":
+        # For BerGamma, the threshold should be in metadata
+        if "bergamma_threshold" in metadata:
+            kwargs["threshold"] = metadata["bergamma_threshold"]
+    elif metadata["loss"] == "DualOutputLoss":
+        # For DualOutput, use the stored threshold
+        if "dual_output_threshold" in metadata:
+            kwargs["threshold"] = metadata["dual_output_threshold"]
+        if "classification_threshold" in metadata:
+            kwargs["classification_threshold"] = metadata["classification_threshold"]
 
+    if "sample" in metadata:
+        kwargs["sample"] = metadata["sample"]
 
     ######## HARDWARE
     # Hardware
     device = ('cuda' if torch.cuda.is_available() else 'cpu')
-
 
     ######## RUNNER
     # Prediction function
@@ -117,6 +124,8 @@ def d4dpredict(
         pred_func_name = "compute_preds_ber_gamma"
     elif metadata["loss"] == "NLLGaussianLoss":
         pred_func_name = "compute_preds_gaussian"
+    elif metadata["loss"] == "DualOutputLoss":
+        pred_func_name = "compute_preds_dual_output"
     else:
         pred_func_name = "compute_preds_standard"
 
@@ -130,7 +139,6 @@ def d4dpredict(
     Ensemble size: {ensemble_size}
     """)  
 
-
     ######## STATISTICS
     num_vars = ds.shape[1]
     m = np.array(metadata["mean"]).reshape(num_vars, 1, 1)
@@ -138,45 +146,43 @@ def d4dpredict(
 
     ######## PREDICT
     pred = []
-    i = 0
-    for sample_idx in range(samples_idx):
-        date = ds.attrs.get("dates")[sample_idx]
-        if date in dates_test:
-            print(f"Inference for sample: {date} ---- ({i}/{len(dates_test)})")
+    total_batches = (num_test_samples + batch_size - 1) // batch_size
+
+    for batch_num, sample_idx in enumerate(range(num_samples-num_test_samples, num_samples, batch_size), 1):
+        print(f'Processing batch {batch_num}/{total_batches}')
+        dates_batch = ds.attrs.get("dates")[sample_idx:(sample_idx+batch_size)]
             
-            # Input data
-            x = ds[sample_idx].astype(np.float32)   
-            x = (x - m) / s
-            x = x.astype(np.float32)
+        # Input data
+        x = ds[sample_idx:(sample_idx+batch_size)].astype(np.float32)   
+        x = (x - m) / s
+        x = x.astype(np.float32)
 
-            # From numpy array to xarray, using attributes stored in the zarr
-            x_input = xr.Dataset(
-                data_vars = {
-                    var_name: (("lat", "lon"), x[i, :, :])
-                    for i, var_name in enumerate(vars)
-                },
-                coords = {
-                    "lat": np.array(ds.attrs.get("lat")),
-                    "lon": np.array(ds.attrs.get("lon"))
-                }
-            )
-            x_input = x_input.expand_dims(time=[date])
+        # From numpy array to xarray, using attributes stored in the zarr
+        x_input = xr.Dataset(
+            data_vars = {
+                var_name: (("time", "lat", "lon"), x[:, i, :, :])
+                for i, var_name in enumerate(vars)
+            },
+            coords = {
+                "time": dates_batch,
+                "lat": np.array(ds.attrs.get("lat")),
+                "lon": np.array(ds.attrs.get("lon"))
+            }
+        )
 
-            # Compute predictions
-            pred.append(
-                pred_func(x_data=x_input, 
-                        model=model,
-                        device=device, 
-                        batch_size=1,
-                        ensemble_size=ensemble_size, # It is possible to sample multiple times from the conditional distribution
-                        **kwargs)
-            )
+        # Compute predictions
+        pred.append(
+            pred_func(x_data=x_input, 
+                      model=model,
+                      device=device, 
+                      batch_size=len(dates_batch),
+                      **kwargs)
+        )
 
-            i = i + 1
+    print("All batches processed.")
         
-    ## Concatenate samples along dimension "time"
+    # Concatenate samples along dimension "time"
     pred = xr.concat(pred, dim = "time")
-    print(pred)
     
     ## Save prediction
     os.makedirs(os.path.dirname(output), exist_ok=True)

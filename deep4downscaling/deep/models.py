@@ -375,6 +375,104 @@ class DeepESDpr(torch.nn.Module):
 
         return out
 
+class DeepESDDualOutput(torch.nn.Module):
+
+    """
+    DeepESD model with dual outputs for precipitation downscaling.
+    
+    This model has two final dense layers:
+    - One for dry/wet day classification (binary cross entropy)  
+    - One for precipitation amount prediction (PriceLoss)
+    
+    The model uses a threshold similar to BerGamma loss to handle the
+    dry/wet day classification.
+
+    Parameters
+    ----------
+    x_shape : tuple
+        Shape of the data used as predictor. This must have dimension 4
+        (time, channels/variables, lon, lat).
+
+    y_shape : tuple
+        Shape of the data used as predictand. This must have dimension 2
+        (time, gridpoint)
+
+    filters_last_conv : int
+        Number of filters/kernels of the last convolutional layer
+
+    threshold : float, optional
+        Threshold for dry/wet day classification, similar to BerGamma loss.
+        Default is 0.0.
+    """
+
+    def __init__(self, x_shape: tuple, y_shape: tuple,
+                 filters_last_conv: int, threshold: float = 0.0):
+
+        super(DeepESDDualOutput, self).__init__()
+
+        if (len(x_shape) != 4) or (len(y_shape) != 2):
+            error_msg =\
+            'X and Y data must have a dimension of length 4'\
+            'and 2, correspondingly'
+
+            raise ValueError(error_msg)
+
+        self.x_shape = x_shape
+        self.y_shape = y_shape
+        self.filters_last_conv = filters_last_conv
+        self.threshold = threshold
+
+        # Calculate number of output features
+        self.num_samples, self.num_gridpoints = self.y_shape
+
+        # Convolutional layers (same as original DeepESD)
+        self.conv_1 = torch.nn.Conv2d(in_channels=self.x_shape[1],
+                                      out_channels=50,
+                                      kernel_size=3,
+                                      padding=1)
+
+        self.conv_2 = torch.nn.Conv2d(in_channels=50,
+                                      out_channels=25,
+                                      kernel_size=3,
+                                      padding=1)
+
+        self.conv_3 = torch.nn.Conv2d(in_channels=25,
+                                      out_channels=self.filters_last_conv,
+                                      kernel_size=3,
+                                      padding=1)
+
+        # Two final dense layers
+        # 1. For dry/wet classification (sigmoid activation)
+        self.out_classification = torch.nn.Linear(
+            in_features=self.x_shape[2] * self.x_shape[3] * self.filters_last_conv,
+            out_features=self.num_gridpoints)
+
+        # 2. For amount prediction (no activation, positive values handled by PriceLoss)
+        self.out_amount = torch.nn.Linear(
+            in_features=self.x_shape[2] * self.x_shape[3] * self.filters_last_conv,
+            out_features=self.num_gridpoints)
+
+    def forward(self, x: torch.Tensor) -> dict:
+
+        # Forward through convolutional layers
+        x = self.conv_1(x)
+        x = torch.relu(x)
+
+        x = self.conv_2(x)
+        x = torch.relu(x)
+
+        x = self.conv_3(x)
+        x = torch.relu(x)
+
+        x = torch.flatten(x, start_dim=1)
+
+        # Two outputs
+        classification = torch.sigmoid(self.out_classification(x))  # Probability of wet day
+        amount = torch.relu(self.out_amount(x))  # Amount (non-negative)
+        out = torch.cat((classification, amount), dim=1)
+
+        return out
+
 class UnitConv(nn.Module):
     
     """

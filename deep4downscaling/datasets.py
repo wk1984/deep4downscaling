@@ -248,8 +248,11 @@ class d4d_dataloader(Dataset):
                path_predictors, path_predictands, 
                variables_predictors, variables_predictands,
                years_predictors, years_predictands,
-               standardize_predictors: str = None):
+               standardize_predictors: str = None,
+               bergamma_threshold: float = None):
 
+    # BerGamma threshold
+    self.bergamma_threshold = bergamma_threshold
 
     # Files
     self.x = [zarr.open(p, mode='r') for p in path_predictors]
@@ -349,7 +352,7 @@ class d4d_dataloader(Dataset):
 
     date_x = self.dates_x[idx]
     date_y = self.dates_y[idx]
-    idx_real_x = self.idx_x[idx]
+    idx_real_x = self.idx_x[idx]    
     idx_real_y = self.idx_y[idx]
 
     idx_zarr_x = [i for i, X in enumerate(self.x) if date_x in X.attrs.get("dates") ]
@@ -365,6 +368,13 @@ class d4d_dataloader(Dataset):
     x = from_numpy(source_x)
     y = from_numpy(source_y)
 
+    # Apply transformation if using the BerGamma loss
+    if self.bergamma_threshold:
+        epsilon = 1e-06
+        threshold = self.bergamma_threshold - epsilon  # Include threshold value in wet days
+        y = y - threshold
+        y = torch.where(y < 0, torch.zeros_like(y), y)
+
     # Apply standardization 
     x = (x - self.mean_x) / self.std_x
 
@@ -372,8 +382,3 @@ class d4d_dataloader(Dataset):
     y = y.squeeze()
 
     return x, y
-
-
-
-
-
