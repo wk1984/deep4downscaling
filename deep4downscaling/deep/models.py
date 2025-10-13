@@ -73,12 +73,6 @@ class DeepESD(torch.nn.Module):
         self.loss_function_name = loss_function_name
         self.last_relu = last_relu
 
-        # if len(y_shape) > 2 and self.loss_function_name in ["NLLGaussianLoss", "NLLBerGammaLoss"]:
-        #     error_msg =\
-        #     f'Y must have a dimension of length 2 to be compatible with {self.loss_function_name}, e.g., it is not a multivariate case.'
-        # 
-        #     raise ValueError(error_msg)
-
         ## Layers
         self.conv_1 = torch.nn.Conv2d(in_channels=self.x_shape[1],
                                       out_channels=50,
@@ -159,6 +153,92 @@ class DeepESD(torch.nn.Module):
 
         return out
 
+class DeepESDHardConstrained(torch.nn.Module):
+    """
+    Why should I write optimal code if this is just for testing?
+    If the model works, I'll do it.
+    """
+
+    def __init__(self, x_shape: tuple, y_shape: tuple,
+                 filters_last_conv: int):
+
+        super(DeepESDHardConstrained, self).__init__()
+
+        ## Predictor checks
+        if (len(x_shape) != 4):
+            error_msg =\
+            'X must have a dimension of length 4'
+
+            raise ValueError(error_msg)
+
+        self.x_shape = x_shape
+
+        ## Predictand checks
+        if (len(y_shape) < 2):
+            error_msg =\
+            'X must have a dimension of length >=2'
+
+            raise ValueError(error_msg)
+
+        self.y_shape = y_shape
+
+        if len(self.y_shape) == 2: # Univariate
+            self.num_samples, self.num_gridpoints = self.y_shape
+            self.num_output_vars = 1
+        elif len(self.y_shape) == 3: # Multivariate
+            self.num_samples, self.num_output_vars, self.num_gridpoints = self.y_shape
+
+        ## Model parameters
+        self.filters_last_conv = filters_last_conv
+
+        ## Layers
+        self.conv_1 = torch.nn.Conv2d(in_channels=self.x_shape[1],
+                                      out_channels=50,
+                                      kernel_size=3,
+                                      padding=1)
+
+        self.conv_2 = torch.nn.Conv2d(in_channels=50,
+                                      out_channels=25,
+                                      kernel_size=3,
+                                      padding=1)
+
+        self.conv_3 = torch.nn.Conv2d(in_channels=25,
+                                      out_channels=self.filters_last_conv,
+                                      kernel_size=3,
+                                      padding=1)
+
+        self.out_tasmin = torch.nn.Linear(in_features=\
+                                          self.x_shape[2] * self.x_shape[3] * self.filters_last_conv,
+                                          out_features=self.num_gridpoints)
+
+        self.out_tas = torch.nn.Linear(in_features=\
+                                       self.x_shape[2] * self.x_shape[3] * self.filters_last_conv,
+                                       out_features=self.num_gridpoints)
+
+        self.out_tasmax = torch.nn.Linear(in_features=\
+                                          self.x_shape[2] * self.x_shape[3] * self.filters_last_conv,
+                                          out_features=self.num_gridpoints)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        x = self.conv_1(x)
+        x = torch.relu(x)
+
+        x = self.conv_2(x)
+        x = torch.relu(x)
+
+        x = self.conv_3(x)
+        x = torch.relu(x)
+
+        x = torch.flatten(x, start_dim=1)
+
+        tasmin = self.out_tasmin(x)
+        tas = tasmin + torch.relu(self.out_tas(x))
+        tasmax = tas + torch.relu(self.out_tasmax(x))
+        out = torch.cat((tasmin, tas, tasmax), dim=1)
+        out = out.view(out.size(0), self.num_output_vars, -1)
+
+        return out
 
 class DeepESDtas(torch.nn.Module):
 
