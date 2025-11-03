@@ -14,3 +14,5 @@ setup(
     ],
     python_requires='>=3.9',
 )
+
+# python -c "import deep4downscaling.viz;import deep4downscaling.trans;import deep4downscaling.deep.loss;import deep4downscaling.deep.utils;import deep4downscaling.deep.models;import deep4downscaling.deep.train;import deep4downscaling.deep.pred;import deep4downscaling.metrics;import deep4downscaling.metrics_ccs"
