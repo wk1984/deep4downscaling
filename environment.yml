@@ -1,0 +1,22 @@
+name: base
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11.10
+  - pip:
+    - xskillscore 
+    - bottleneck
+    - torch==2.5.1
+    - scipy==1.16.2
+    - xarray==2025.9.1
+    - pandas==2.3.3
+    - cartopy==0.25.0
+    - matplotlib==3.10.6
+    - notebook==7.4.7
+    - jupyterlab==4.4.9
+prefix: /opt/conda
+  
+  
+  
+
