@@ -2,6 +2,8 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/wk1984/deep4downscaling/create_mybinder)
+
 ## Description
 
 `deep4downscaling` is a Python library designed for developing deep learning models for statistical downscaling. The library focuses on two main objectives:
