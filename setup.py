@@ -10,7 +10,7 @@ setup(
     packages=find_packages(), 
     
     install_requires=[
-        'torch>=2.0', 'xskillscore','bottleneck','xarray','pandas','scipy','matplotlib','cartopy','ipykernel'
+        'torch==2.5.1', 'xskillscore','bottleneck','xarray','pandas','scipy','matplotlib','cartopy','ipykernel'
     ],
     python_requires='>=3.9',
 )
