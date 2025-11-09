@@ -17,12 +17,12 @@ authors = [
 
 # 运行时依赖项 (来自 setup.py 的 install_requires)
 dependencies = [
-    "torch==2.5.1",
+    "torch>=2.5",
     "xskillscore",
     "bottleneck",
     "xarray",
     "scipy",
-	"pandas",
+	"pandas>=2.3.0",
     "matplotlib",
     "cartopy"
 ]
