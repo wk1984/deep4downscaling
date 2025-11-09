@@ -1,0 +1,36 @@
+[build-system]
+# 定义构建项目所需的依赖和后端
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# 项目元数据 (来自 setup.py 的 setup() 函数参数)
+name = "deep4downscaling"
+version = "2025.11.03"
+description = "A package for deep downscaling scripts."
+# 找到包的逻辑，setuptools 默认使用 find_packages()，这里不需要额外配置
+# 如果您的包在 src 目录下，则可能需要 [tool.setuptools.packages.find]
+
+authors = [
+    {name = "nobody", email = "noreply@example.com"}
+]
+
+# 运行时依赖项 (来自 setup.py 的 install_requires)
+dependencies = [
+    "torch==2.5.1",
+    "xskillscore",
+    "bottleneck",
+    "xarray",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "cartopy"
+]
+
+# 所需的 Python 版本 (来自 setup.py 的 python_requires)
+requires-python = ">=3.9"
+
+# 由于您在 setup.py 中使用了 find_packages()，setuptools 会自动查找包。
+# 如果您的包不在顶层目录（例如在 'src' 目录下），您可能需要添加以下内容：
+# [tool.setuptools.packages.find]
+# where = ["src"]
