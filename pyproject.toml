@@ -21,7 +21,6 @@ dependencies = [
     "xskillscore",
     "bottleneck",
     "xarray",
-    "pandas",
     "scipy",
     "matplotlib",
     "cartopy"
@@ -32,5 +31,5 @@ requires-python = ">=3.9"
 
 # 由于您在 setup.py 中使用了 find_packages()，setuptools 会自动查找包。
 # 如果您的包不在顶层目录（例如在 'src' 目录下），您可能需要添加以下内容：
-# [tool.setuptools.packages.find]
-# where = ["src"]
+#[tool.setuptools.packages.find]
+#where = ["deep4downscaling"]
