@@ -22,7 +22,7 @@ dependencies = [
     "bottleneck",
     "xarray",
     "scipy",
-	"pandas>=2.3.0",
+	"pandas==2.0.3",
     "matplotlib",
     "cartopy"
 ]
