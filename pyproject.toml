@@ -24,7 +24,7 @@ dependencies = [
     "scipy",
 	"pandas==2.0.3",
     "matplotlib",
-    "cartopy"
+    "cartopy==0.25.0"
 ]
 
 # 所需的 Python 版本 (来自 setup.py 的 python_requires)
