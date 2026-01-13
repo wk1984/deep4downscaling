@@ -97,8 +97,11 @@ def standardize(data_ref: xr.Dataset, data: xr.Dataset) -> xr.Dataset:
 
     mean = data_ref.mean('time')
     std = data_ref.std('time')
+    
+    epsilon=1e-6
+    std_safe = std.where(std > epsilon, 1.0)
 
-    data_stand = (data - mean) / std
+    data_stand = (data - mean) / std_safe
 
     return data_stand
 
